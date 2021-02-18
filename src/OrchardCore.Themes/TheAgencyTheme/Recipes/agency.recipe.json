@@ -40,7 +40,7 @@
         "OrchardCore.ContentFields",
         "OrchardCore.ContentPreview",
         "OrchardCore.Contents",
-        "OrchardCore.Contents.FileContentDefinition",
+        //"OrchardCore.Contents.FileContentDefinition", //We do not want the FileProvider to be creating content definitions
         "OrchardCore.ContentTypes",
         "OrchardCore.CustomSettings",
         "OrchardCore.Deployment",
