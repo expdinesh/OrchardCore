@@ -16,10 +16,11 @@ namespace OrchardCore.Scalability
         }
 
         public Task BuildNavigationAsync(string name, NavigationBuilder builder)
+        
         {
-            builder.Add(S["Scalability Test"], "0", scalability => scalability
+            builder.Add(S["Scalability Test"], "5", scalability => scalability
                     .AddClass("scalability").Id("scalability")
-                                .Action("Index", "Setup", new { area = "OrchardCore.Scalability" })
+                                .Action("Index", "Admin", new { area = "OrchardCore.Scalability" })
                                 .LocalNav()
                          );
             return Task.CompletedTask;

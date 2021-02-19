@@ -21,10 +21,11 @@ using OrchardCore.Setup.Services;
 using OrchardCore.Scalability.ViewModels;
 using Newtonsoft.Json;
 using System.IO;
+using Microsoft.AspNetCore.Hosting;
 
 namespace OrchardCore.Scalability.Controllers
 {
-    public class SetupController : Controller
+    public class AdminController : Controller
     {
         private const string defaultAdminName = "admin";
         private const string defaultAdminPassword = "Lostman@123";
@@ -39,12 +40,13 @@ namespace OrchardCore.Scalability.Controllers
         private readonly IStringLocalizer S;
         private readonly IShellSettingsManager _shellSettingsManager;
         private readonly IConfiguration _configuration;
+        private readonly IWebHostEnvironment _environment;
 
         private int shellCount = 100;
 
         List<SetupViewModel> shellList = new List<SetupViewModel>();
 
-        public SetupController(
+        public AdminController(
             IClock clock,
             ISetupService setupService,
             ShellSettings shellSettings,
@@ -52,10 +54,11 @@ namespace OrchardCore.Scalability.Controllers
             IOptions<IdentityOptions> identityOptions,
             IEmailAddressValidator emailAddressValidator,
             IEnumerable<DatabaseProvider> databaseProviders,
-            IStringLocalizer<SetupController> localizer,
+            IStringLocalizer<AdminController> localizer,
             IShellSettingsManager shellSettingsManager,
             IConfiguration configuration,
-            ILogger<SetupController> logger)
+            IWebHostEnvironment environment,
+            ILogger<AdminController> logger)
         {
             _clock = clock;
             _setupService = setupService;
@@ -68,48 +71,55 @@ namespace OrchardCore.Scalability.Controllers
             S = localizer;
             _shellSettingsManager = shellSettingsManager;
             _configuration = configuration;
+            _environment = environment;
         }
 
 
         public async Task<ActionResult> DeployTestTenant()
         {
             await DeployShells(1);
-            return View();
+            return View("Deployed");
+        }
+        public async Task<ActionResult> Deploy10()
+        {
+            shellCount = 10;
+            await DeployShells(shellCount);
+            return View("Deployed");
         }
 
         public async Task<ActionResult> Deploy100()
         {
             shellCount = 100;
             await DeployShells(shellCount);
-            return View();
+            return View("Deployed");
         }
 
         public async Task<ActionResult> Deploy500()
         {
             shellCount = 500;
             await DeployShells(shellCount);
-            return View();
+            return View("Deployed");
         }
 
         public async Task<ActionResult> Deploy1000()
         {
             shellCount = 1000;
             await DeployShells(shellCount);
-            return View();
+            return View("Deployed");
         }
 
         public async Task<ActionResult> Deploy5000()
         {
             shellCount = 5000;
             await DeployShells(shellCount);
-            return View();
+            return View("Deployed");
         }
 
         public async Task<ActionResult> Deploy10000()
         {
             shellCount = 10000;
             await DeployShells(shellCount);
-            return View();
+            return View("Deployed");
         }
 
         public async Task<IActionResult> Index()
@@ -118,39 +128,7 @@ namespace OrchardCore.Scalability.Controllers
             return await Task.FromResult(View("Index"));
         }
 
-        //public async Task<ActionResult> Index(string token)
-        //{
-        //    var recipes = await _setupService.GetSetupRecipesAsync();
-        //    var defaultRecipe = recipes.FirstOrDefault(x => x.Tags.Contains("default")) ?? recipes.FirstOrDefault();
-
-        //    if (!string.IsNullOrWhiteSpace(_shellSettings["Secret"]))
-        //    {
-        //        if (string.IsNullOrEmpty(token) || !await IsTokenValid(token))
-        //        {
-        //            _logger.LogWarning("An attempt to access '{TenantName}' without providing a secret was made", _shellSettings.Name);
-        //            return StatusCode(404);
-        //        }
-        //    }
-
-        //    var model = new SetupViewModel
-        //    {
-        //        DatabaseProviders = _databaseProviders,
-        //        Recipes = recipes,
-        //        RecipeName = defaultRecipe?.Name,
-        //        Secret = token
-        //    };
-
-        //    CopyShellSettingsValues(model);
-
-        //    if (!String.IsNullOrEmpty(_shellSettings["TablePrefix"]))
-        //    {
-        //        model.DatabaseConfigurationPreset = true;
-        //        model.TablePrefix = _shellSettings["TablePrefix"];
-        //    }
-
-        //    return View(model);
-        //}
-
+        
         //[HttpPost, ActionName("Index")]
         public async Task<bool> GenerateTenants(SetupViewModel model)
         {
@@ -329,16 +307,17 @@ namespace OrchardCore.Scalability.Controllers
 
         private async Task<SetupViewModel> InitSetupViewModel(int count)
         {
-            string tenantName = GenerateTenantName()+count.ToString();
-            string connectionString = $"OrchardCore_Shells_Database:ConnectionString";
+            string tenantName = GenerateTenantName() + "_" + count.ToString();
+            string connectionString = "TenantSettings:ConnectionString";
             SetupViewModel setupViewModel = new SetupViewModel();
             setupViewModel.DatabaseProvider = "SqlConnection";
             setupViewModel.ConnectionString = _configuration[connectionString];
-            setupViewModel.RecipeName = "agency";
+            setupViewModel.RecipeName = "Agency";
             setupViewModel.SiteName = tenantName;
             setupViewModel.SiteTimeZone = "Asia/Kolkata";
             setupViewModel.Email = tenantName + "@gmail.com";
             setupViewModel.Password = defaultAdminPassword;
+            setupViewModel.PasswordConfirmation = defaultAdminPassword;
             setupViewModel.UserName = defaultAdminName;
             await InitializeShellSettings(setupViewModel, tenantName);
 
@@ -347,28 +326,38 @@ namespace OrchardCore.Scalability.Controllers
 
         private async Task InitializeShellSettings(SetupViewModel setupViewModel, string tenantName)
         {
-            _shellSettings = new ShellSettings
+            try
             {
-                Name = tenantName,
-                RequestUrlPrefix = tenantName,
-                RequestUrlHost = null,   //We will need to support request with Domain Names as well in Future
-                State = TenantState.Uninitialized
-            };
+                _shellSettings = new ShellSettings
+                {
+                    Name = tenantName,
+                    RequestUrlPrefix = tenantName,
+                    RequestUrlHost = null,   //We will need to support request with Domain Names as well in Future
+                    State = TenantState.Uninitialized
+                };
+
+                _shellSettings["RecipeName"] = setupViewModel.RecipeName;
+
+                //Time to get the Database settings for the current instance
+
+                _shellSettings["DatabaseProvider"] = setupViewModel.DatabaseProvider;
+
+                _shellSettings["ConnectionString"] = setupViewModel.ConnectionString;
+                _shellSettings["TablePrefix"] = tenantName;
+                await _shellSettingsManager.SaveSettingsAsync(_shellSettings);
+                var shellContext = await _shellHost.GetOrCreateShellContextAsync(_shellSettings);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Failed to create shell settings for {tenantName}. {ex}");
+            }
             
-            _shellSettings["RecipeName"] = setupViewModel.RecipeName;
-
-            //Time to get the Database settings for the current instance
-
-            _shellSettings["DatabaseProvider"] = setupViewModel.DatabaseProvider;
-
-            _shellSettings["ConnectionString"] = setupViewModel.ConnectionString;
-            _shellSettings["TablePrefix"] = tenantName;
-            await _shellSettingsManager.SaveSettingsAsync(_shellSettings);
-            var shellContext = await _shellHost.GetOrCreateShellContextAsync(_shellSettings);
         }
 
         private async Task<bool> DeployShells(int count)
         {
+            shellList.Clear();
+            _logger.LogDebug($"Start Time for deploying { count} number of tenants.: {DateTime.UtcNow}");
             for (int i = 0; i < count; i++)
             {
                 var setupModel = await InitSetupViewModel(i);
@@ -380,14 +369,27 @@ namespace OrchardCore.Scalability.Controllers
                     shellList.Add(setupModel);
                 }
             }
-            string json = JsonConvert.SerializeObject(shellList);
-
-            string path = @"C:\temp\deployedtenant.json";
-            //export data to json file. 
-            using (TextWriter tw = new StreamWriter(path))
+            _logger.LogDebug($"End Time for deploying { count} number of tenants.");
+            
+            string folderPath = Path.Combine(_environment.WebRootPath, "Deployments");
+            DirectoryInfo info = new DirectoryInfo(folderPath);
+            if (!info.Exists)
             {
-                tw.WriteLine(json);
-            };
+                info.Create();
+            }
+            string path = Path.Combine(folderPath, "deployedtenants.json");
+            try
+            {
+                var json =  System.Text.Json.JsonSerializer.Serialize(shellList);
+                
+                //write string to file
+                System.IO.File.WriteAllText(path, json);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Failed to write json. {ex}");
+               
+            }
             return true;
         }
 

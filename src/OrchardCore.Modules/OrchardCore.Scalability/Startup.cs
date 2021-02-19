@@ -12,6 +12,8 @@ using Microsoft.Extensions.Options;
 using OrchardCore.Environment.Shell.Configuration;
 using OrchardCore.Localization;
 using OrchardCore.Modules;
+using OrchardCore.Navigation;
+using OrchardCore.Setup;
 
 namespace OrchardCore.Scalability
 {
@@ -33,16 +35,8 @@ namespace OrchardCore.Scalability
 
         public override void ConfigureServices(IServiceCollection services)
         {
-            //services.AddPortableObjectLocalization(options => options.ResourcesPath = "Localization");
-           
-
-            //services.AddSetup();
-
-            //services.Configure<IdentityOptions>(options =>
-            //{
-            //    options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._+";
-            //    options.User.RequireUniqueEmail = true;
-            //});
+            services.AddTransient<INavigationProvider, AdminMenu>();
+            services.AddSetup();
         }
 
         public override void Configure(IApplicationBuilder app, IEndpointRouteBuilder routes, IServiceProvider serviceProvider)

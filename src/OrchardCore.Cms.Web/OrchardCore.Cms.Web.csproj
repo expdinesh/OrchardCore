@@ -14,6 +14,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Folder Include="Deployments\" />
     <Folder Include="wwwroot\" />
     <Folder Include="Localization\" />
   </ItemGroup>
