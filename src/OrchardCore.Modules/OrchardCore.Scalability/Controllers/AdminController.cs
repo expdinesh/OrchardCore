@@ -357,7 +357,7 @@ namespace OrchardCore.Scalability.Controllers
         private async Task<bool> DeployShells(int count)
         {
             shellList.Clear();
-            _logger.LogDebug($"Start Time for deploying { count} number of tenants.: {DateTime.UtcNow}");
+            _logger.LogDebug($"Start Time for deploying { count} number of tenants.: {DateTime.Now.TimeOfDay}");
             for (int i = 0; i < count; i++)
             {
                 var setupModel = await InitSetupViewModel(i);
@@ -369,7 +369,7 @@ namespace OrchardCore.Scalability.Controllers
                     shellList.Add(setupModel);
                 }
             }
-            _logger.LogDebug($"End Time for deploying { count} number of tenants.");
+            _logger.LogDebug($"End Time for deploying { count} number of tenants.: {DateTime.Now.TimeOfDay}");
             
             string folderPath = Path.Combine(_environment.WebRootPath, "Deployments");
             DirectoryInfo info = new DirectoryInfo(folderPath);
