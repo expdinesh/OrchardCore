@@ -59,7 +59,10 @@
         "OrchardCore.Templates",
         "OrchardCore.Widgets",
         "Orchardcore.Redis",
-
+        "OrchardCore.Redis.Cache",
+        "OrchardCore.Redis.Bus",
+        "OrchardCore.Redis.Lock",
+        "OrchardCore.Redis.DataProtection",
         // Themes
         "TheAgencyTheme",
         "TheAdmin",

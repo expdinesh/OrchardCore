@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
@@ -17,15 +18,19 @@ using OrchardCore.Environment.Shell.Models;
 using OrchardCore.Modules;
 using OrchardCore.Recipes.Models;
 using OrchardCore.Setup.Services;
-using OrchardCore.Setup.ViewModels;
+using OrchardCore.Scalability.ViewModels;
+using Newtonsoft.Json;
+using System.IO;
 
-namespace OrchardCore.Setup.Controllers
+namespace OrchardCore.Scalability.Controllers
 {
     public class SetupController : Controller
     {
+        private const string defaultAdminName = "admin";
+        private const string defaultAdminPassword = "Lostman@123";
         private readonly IClock _clock;
         private readonly ISetupService _setupService;
-        private readonly ShellSettings _shellSettings;
+        private ShellSettings _shellSettings;
         private readonly IShellHost _shellHost;
         private IdentityOptions _identityOptions;
         private readonly IEmailAddressValidator _emailAddressValidator;
@@ -33,6 +38,7 @@ namespace OrchardCore.Setup.Controllers
         private readonly ILogger _logger;
         private readonly IStringLocalizer S;
         private readonly IShellSettingsManager _shellSettingsManager;
+        private readonly IConfiguration _configuration;
 
         private int shellCount = 100;
 
@@ -48,6 +54,7 @@ namespace OrchardCore.Setup.Controllers
             IEnumerable<DatabaseProvider> databaseProviders,
             IStringLocalizer<SetupController> localizer,
             IShellSettingsManager shellSettingsManager,
+            IConfiguration configuration,
             ILogger<SetupController> logger)
         {
             _clock = clock;
@@ -60,58 +67,92 @@ namespace OrchardCore.Setup.Controllers
             _logger = logger;
             S = localizer;
             _shellSettingsManager = shellSettingsManager;
+            _configuration = configuration;
         }
 
+
+        public async Task<ActionResult> DeployTestTenant()
+        {
+            await DeployShells(1);
+            return View();
+        }
 
         public async Task<ActionResult> Deploy100()
         {
             shellCount = 100;
-            await DeployShells(100);
+            await DeployShells(shellCount);
             return View();
         }
 
         public async Task<ActionResult> Deploy500()
         {
             shellCount = 500;
-            await DeployShells(100);
+            await DeployShells(shellCount);
             return View();
         }
 
-        public async Task<ActionResult> Index(string token)
+        public async Task<ActionResult> Deploy1000()
         {
-            var recipes = await _setupService.GetSetupRecipesAsync();
-            var defaultRecipe = recipes.FirstOrDefault(x => x.Tags.Contains("default")) ?? recipes.FirstOrDefault();
-
-            if (!string.IsNullOrWhiteSpace(_shellSettings["Secret"]))
-            {
-                if (string.IsNullOrEmpty(token) || !await IsTokenValid(token))
-                {
-                    _logger.LogWarning("An attempt to access '{TenantName}' without providing a secret was made", _shellSettings.Name);
-                    return StatusCode(404);
-                }
-            }
-
-            var model = new SetupViewModel
-            {
-                DatabaseProviders = _databaseProviders,
-                Recipes = recipes,
-                RecipeName = defaultRecipe?.Name,
-                Secret = token
-            };
-
-            CopyShellSettingsValues(model);
-
-            if (!String.IsNullOrEmpty(_shellSettings["TablePrefix"]))
-            {
-                model.DatabaseConfigurationPreset = true;
-                model.TablePrefix = _shellSettings["TablePrefix"];
-            }
-
-            return View(model);
+            shellCount = 1000;
+            await DeployShells(shellCount);
+            return View();
         }
 
-        [HttpPost, ActionName("Index")]
-        public async Task<bool> IndexPOST(SetupViewModel model)
+        public async Task<ActionResult> Deploy5000()
+        {
+            shellCount = 5000;
+            await DeployShells(shellCount);
+            return View();
+        }
+
+        public async Task<ActionResult> Deploy10000()
+        {
+            shellCount = 10000;
+            await DeployShells(shellCount);
+            return View();
+        }
+
+        public async Task<IActionResult> Index()
+        {
+            // await _dashboardTenantBootstrapperService.BootstrapTenant();
+            return await Task.FromResult(View("Index"));
+        }
+
+        //public async Task<ActionResult> Index(string token)
+        //{
+        //    var recipes = await _setupService.GetSetupRecipesAsync();
+        //    var defaultRecipe = recipes.FirstOrDefault(x => x.Tags.Contains("default")) ?? recipes.FirstOrDefault();
+
+        //    if (!string.IsNullOrWhiteSpace(_shellSettings["Secret"]))
+        //    {
+        //        if (string.IsNullOrEmpty(token) || !await IsTokenValid(token))
+        //        {
+        //            _logger.LogWarning("An attempt to access '{TenantName}' without providing a secret was made", _shellSettings.Name);
+        //            return StatusCode(404);
+        //        }
+        //    }
+
+        //    var model = new SetupViewModel
+        //    {
+        //        DatabaseProviders = _databaseProviders,
+        //        Recipes = recipes,
+        //        RecipeName = defaultRecipe?.Name,
+        //        Secret = token
+        //    };
+
+        //    CopyShellSettingsValues(model);
+
+        //    if (!String.IsNullOrEmpty(_shellSettings["TablePrefix"]))
+        //    {
+        //        model.DatabaseConfigurationPreset = true;
+        //        model.TablePrefix = _shellSettings["TablePrefix"];
+        //    }
+
+        //    return View(model);
+        //}
+
+        //[HttpPost, ActionName("Index")]
+        public async Task<bool> GenerateTenants(SetupViewModel model)
         {
             if (!string.IsNullOrWhiteSpace(_shellSettings["Secret"]))
             {
@@ -286,51 +327,77 @@ namespace OrchardCore.Setup.Controllers
             return false;
         }
 
-        private async Task<SetupViewModel> InitSetupViewModel()
+        private async Task<SetupViewModel> InitSetupViewModel(int count)
         {
+            string tenantName = GenerateTenantName()+count.ToString();
+            string connectionString = $"OrchardCore_Shells_Database:ConnectionString";
             SetupViewModel setupViewModel = new SetupViewModel();
-            setupViewModel.ConnectionString = @"";
-            await InitializeShellSettings(setupViewModel);
+            setupViewModel.DatabaseProvider = "SqlConnection";
+            setupViewModel.ConnectionString = _configuration[connectionString];
+            setupViewModel.RecipeName = "agency";
+            setupViewModel.SiteName = tenantName;
+            setupViewModel.SiteTimeZone = "Asia/Kolkata";
+            setupViewModel.Email = tenantName + "@gmail.com";
+            setupViewModel.Password = defaultAdminPassword;
+            setupViewModel.UserName = defaultAdminName;
+            await InitializeShellSettings(setupViewModel, tenantName);
+
             return setupViewModel;
         }
 
-        private async Task InitializeShellSettings(SetupViewModel setupViewModel)
+        private async Task InitializeShellSettings(SetupViewModel setupViewModel, string tenantName)
         {
-            ShellSettings tenantShellSettings = new ShellSettings
+            _shellSettings = new ShellSettings
             {
-                Name = "",
-                RequestUrlPrefix = "",
+                Name = tenantName,
+                RequestUrlPrefix = tenantName,
                 RequestUrlHost = null,   //We will need to support request with Domain Names as well in Future
                 State = TenantState.Uninitialized
             };
-            await _shellSettingsManager.SaveSettingsAsync(tenantShellSettings);
-            var shellContext = await _shellHost.GetOrCreateShellContextAsync(tenantShellSettings);
-          
-            tenantShellSettings["RecipeName"] = "";
+            
+            _shellSettings["RecipeName"] = setupViewModel.RecipeName;
 
             //Time to get the Database settings for the current instance
 
-            tenantShellSettings["DatabaseProvider"] = "";
+            _shellSettings["DatabaseProvider"] = setupViewModel.DatabaseProvider;
 
-            tenantShellSettings["ConnectionString"] = "";
-            tenantShellSettings["TablePrefix"] = "";
-
+            _shellSettings["ConnectionString"] = setupViewModel.ConnectionString;
+            _shellSettings["TablePrefix"] = tenantName;
+            await _shellSettingsManager.SaveSettingsAsync(_shellSettings);
+            var shellContext = await _shellHost.GetOrCreateShellContextAsync(_shellSettings);
         }
 
         private async Task<bool> DeployShells(int count)
         {
             for (int i = 0; i < count; i++)
             {
-                var setupModel = await InitSetupViewModel();
+                var setupModel = await InitSetupViewModel(i);
 
-                bool result = await IndexPOST(setupModel);
+                bool result = await GenerateTenants(setupModel);
 
                 if (result)
                 {
                     shellList.Add(setupModel);
                 }
             }
+            string json = JsonConvert.SerializeObject(shellList);
+
+            string path = @"C:\temp\deployedtenant.json";
+            //export data to json file. 
+            using (TextWriter tw = new StreamWriter(path))
+            {
+                tw.WriteLine(json);
+            };
             return true;
+        }
+
+        public string GenerateTenantName()
+        {
+            int length = 8;
+            Random random = new Random();
+            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            return new string(Enumerable.Repeat(chars, length)
+              .Select(s => s[random.Next(s.Length)]).ToArray()).ToLower();
         }
     }
 }

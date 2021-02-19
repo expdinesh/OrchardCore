@@ -1,4 +1,4 @@
-namespace OrchardCore.Setup.Annotations
+namespace OrchardCore.Scalability.Annotations
 {
     public class SiteNameValidAttribute : System.ComponentModel.DataAnnotations.RangeAttribute
     {

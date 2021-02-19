@@ -3,9 +3,9 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using OrchardCore.Data;
 using OrchardCore.Recipes.Models;
-using OrchardCore.Setup.Annotations;
+using OrchardCore.Scalability.Annotations;
 
-namespace OrchardCore.Setup.ViewModels
+namespace OrchardCore.Scalability.ViewModels
 {
     public class SetupViewModel
     {
