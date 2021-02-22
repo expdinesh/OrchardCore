@@ -380,7 +380,7 @@ namespace OrchardCore.Scalability.Controllers
             string path = Path.Combine(folderPath, "deployedtenants.json");
             try
             {
-                var json =  System.Text.Json.JsonSerializer.Serialize(shellList);
+                var json =  System.Text.Json.JsonSerializer.Serialize(shellList.Select(x => x.SiteName).ToList());
                 
                 //write string to file
                 System.IO.File.WriteAllText(path, json);
