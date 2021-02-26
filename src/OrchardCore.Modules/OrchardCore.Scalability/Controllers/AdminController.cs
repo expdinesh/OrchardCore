@@ -22,6 +22,7 @@ using OrchardCore.Scalability.ViewModels;
 using Newtonsoft.Json;
 using System.IO;
 using Microsoft.AspNetCore.Hosting;
+using System.Net;
 
 namespace OrchardCore.Scalability.Controllers
 {
@@ -128,7 +129,7 @@ namespace OrchardCore.Scalability.Controllers
             return await Task.FromResult(View("Index"));
         }
 
-        
+
         //[HttpPost, ActionName("Index")]
         public async Task<bool> GenerateTenants(SetupViewModel model)
         {
@@ -351,7 +352,7 @@ namespace OrchardCore.Scalability.Controllers
             {
                 _logger.LogError($"Failed to create shell settings for {tenantName}. {ex}");
             }
-            
+
         }
 
         private async Task<bool> DeployShells(int count)
@@ -364,13 +365,19 @@ namespace OrchardCore.Scalability.Controllers
 
                 bool result = await GenerateTenants(setupModel);
 
+                await Task.Delay(5000);
+
                 if (result)
                 {
                     shellList.Add(setupModel);
                 }
+                else
+                {
+                    break;
+                }
             }
             _logger.LogDebug($"End Time for deploying { count} number of tenants.: {DateTime.Now.TimeOfDay}");
-            
+
             string folderPath = Path.Combine(_environment.WebRootPath, "Deployments");
             DirectoryInfo info = new DirectoryInfo(folderPath);
             if (!info.Exists)
@@ -380,17 +387,43 @@ namespace OrchardCore.Scalability.Controllers
             string path = Path.Combine(folderPath, "deployedtenants.json");
             try
             {
-                var json =  System.Text.Json.JsonSerializer.Serialize(shellList.Select(x => x.SiteName).ToList());
-                
+                var json = System.Text.Json.JsonSerializer.Serialize(shellList.Select(x => x.SiteName).ToList());
+
                 //write string to file
                 System.IO.File.WriteAllText(path, json);
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Failed to write json. {ex}");
-               
+
             }
             return true;
+        }
+
+        public async Task<IActionResult> generateTenantList()
+        {
+            var shellSettings = await _shellSettingsManager.LoadSettingsAsync();
+            string folderPath = Path.Combine(_environment.WebRootPath, "Deployments");
+            DirectoryInfo info = new DirectoryInfo(folderPath);
+            if (!info.Exists)
+            {
+                info.Create();
+            }
+            string path = Path.Combine(folderPath, "tenantlist.json");
+            try
+            {
+                var json = System.Text.Json.JsonSerializer.Serialize(shellSettings.Select(x => x.RequestUrlPrefix).ToList());
+                //write string to file
+                System.IO.File.WriteAllText(path, json);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Failed to write json. {ex}");
+
+            }
+            return View("TenantsList"); ;
+           
+            //return true;
         }
 
         public string GenerateTenantName()
